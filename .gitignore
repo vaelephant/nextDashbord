@@ -1,0 +1,25 @@
+<<<<<<< HEAD
+node_modules/
+=======
+
+node_modules/.bin/autoprefixer
+>>>>>>> parent of 1b98d6df (6)
+*.gz
+*.gz
+.next/cache/webpack/client-development/7.pack.gz
+.next/cache/webpack/client-development/index.pack.gz
+.next/cache/webpack/client-development/index.pack.gz.old
+.next/cache/webpack/server-development/1.pack.gz
+.next/cache/webpack/server-development/3.pack.gz
+.next/cache/webpack/server-development/index.pack.gz
+.next/cache/webpack/server-development/index.pack.gz.old
+*.gz
+*.gz
+.next/cache/webpack/server-development/index.pack.gz.old
+.next/
+*.gz
+*.old
+.next/cache/webpack/server-development/1.pack.gz
+*.old
+
+node_modules/@next/swc-darwin-arm64/next-swc.darwin-arm64.node
