@@ -1,8 +1,9 @@
 import type { NextAuthConfig } from 'next-auth';
- 
+import NextAuth from 'next-auth';
 export const authConfig = {
   pages: {
-    signIn: '/login',
+    //signIn: '/login',
+    signIn: '/dashboard',
   },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
@@ -12,6 +13,7 @@ export const authConfig = {
         if (isLoggedIn) return true;
         return false; // Redirect unauthenticated users to login page
       } else if (isLoggedIn) {
+        console.log("登录成功")
         return Response.redirect(new URL('/dashboard', nextUrl));
       }
       return true;
