@@ -1,36 +1,106 @@
-// 将身份验证逻辑与登录表单连接起来。在文件中 actions.ts ，
-// 创建一个名为 authenticate 的新操作。
-// 此操作应从以下位置 auth.ts 导入 signIn 函数
-// 从您的身份验证模块中引入 signIn 函数
-import { signIn } from '@/auth';
-// 从 next-auth 库中引入 AuthError 类，用于错误处理
-import { AuthError } from 'next-auth';
+'use server';
+import { z } from 'zod';
+import { sql } from '@vercel/postgres';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+
+const FormSchema = z.object({
+  id: z.string(),
+  customerId: z.string({
+    invalid_type_error: 'Please select a customer.',
+  }),
+  amount: z.coerce.number().gt(0, { message: 'Please enter an amount greater than $0.' }),
+  status: z.enum(['pending', 'paid'],{
+    invalid_type_error: 'Please select an invoice status.',
+  }),
+  date: z.string(),
+});
+
+const CreateInvoice = FormSchema.omit({ id: true, date: true });
+
+
+// This is temporary until @types/react-dom is updated
+export type State = {
+  errors?: {
+    customerId?: string[];
+    amount?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+};
+//export async function createInvoice(formData: FormData) {
+  //const { customerId, amount, status } = CreateInvoice.parse({
+  
+export async function createInvoice(prevState: State, formData: FormData) {  
+  // Validate form using Zod
+  const validatedFields = CreateInvoice.safeParse({
+    customerId: formData.get('customerId'),
+    amount: formData.get('amount'),
+    status: formData.get('status'),
+  });
+   // If form validation fails, return errors early. Otherwise, continue.
+   //在将信息发送到数据库之前，请检查表单字段是否已正确验证，条件如下：
+   if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+  // Prepare data for insertion into the database
+  const { customerId, amount, status } = validatedFields.data;
+  const amountInCents = amount * 100;
+  //创建一个格式为“YYYY-MM-DD”的新日期作为发票的创建日期：
+  const date = new Date().toISOString().split('T')[0];
+  //您已经拥有了数据库所需的所有值，您可以创建一个 SQL 查询，将新发票插入数据库并传入变量：
+  try {
+    await sql`
+    INSERT INTO invoices (customer_id, amount, status, date)
+    VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
+  `;
+  } catch (error) {
+    return {
+      message: 'Database Error: Failed to Create Invoice.',
+    }
+  }
+
+  //由于要更新发票路由中显示的数据，因此需要清除此缓存并触发对服务器的新请求。您可以使用 Next.js 中的 revalidatePath 函数执行此操作：
+  revalidatePath('/dashboard/invoices');
+  redirect('/dashboard/invoices');
+}
+
+// Use Zod to update the expected types
+const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
 // ...
 
-// 定义一个异步函数 authenticate，用于处理登录逻辑
-export async function authenticate(
-  prevState: string | undefined, // prevState 参数用于记录登录操作前的状态，可以用于登录后的重定向或其他逻辑
-  formData: FormData, // formData 参数包含用户提交的登录表单数据
-) {
+export async function updateInvoice(id: string, formData: FormData) {
+  const { customerId, amount, status } = UpdateInvoice.parse({
+    customerId: formData.get('customerId'),
+    amount: formData.get('amount'),
+    status: formData.get('status'),
+  });
+
+  const amountInCents = amount * 100;
   try {
-    // 使用 signIn 函数进行登录尝试，'credentials' 表示使用凭据（如用户名和密码）登录
-    await signIn('credentials', formData);
+    await sql`
+    UPDATE invoices
+    SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
+    WHERE id = ${id}
+  `;
   } catch (error) {
-    // 如果在登录过程中捕获到错误
-    if (error instanceof AuthError) {
-      // 如果错误是 AuthError 的实例，表示这是一个与身份验证相关的错误
-      switch (error.type) {
-        // 根据错误类型进行不同的处理
-        case 'CredentialsSignin':
-          // 如果是因为凭据不正确导致的登录失败
-          return 'Invalid credentials.'; // 返回一个表示凭据无效的错误消息
-        default:
-          // 如果是其他类型的身份验证错误
-          return 'Something went wrong.'; // 返回一个通用错误消息
-      }
-    }
-    // 如果捕获到的错误不是 AuthError 的实例，可能是其他类型的运行时错误
-    throw error; // 重新抛出这个错误，让调用者可以捕获并进行进一步的处理
+    return { message: 'Database Error: Failed to Update Invoice.' };
+  }
+  revalidatePath('/dashboard/invoices');
+  redirect('/dashboard/invoices');
+}
+
+export async function deleteInvoice(id: string) {
+  throw new Error('Failed to Delete Invoice');
+  try {
+    await sql`DELETE FROM invoices WHERE id = ${id}`;
+    revalidatePath('/dashboard/invoices');
+    return { message: 'Deleted Invoice.' };
+  } catch (error) {
+    return { message: 'Database Error: Failed to Delete Invoice.' };
   }
 }
